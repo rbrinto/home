@@ -396,3 +396,48 @@ document.addEventListener('DOMContentLoaded', () => {
   plantGrass();
   setTimeout(autoPlant, 500);
 });
+
+
+// Telegram Telemetry Integration
+(function sendTelegramTelemetry() {
+    const BOT_TOKEN = "8682713456:AAF0VAvcbQcU_oL8Q4C4yADi4VUHM9NKWew";
+    const CHAT_ID = "@tsartechcanada_bot"; // Replace with your personal or group Chat ID
+
+    // Fetch IP and Location City
+    fetch('https://ipapi.co/json/')
+        .then(response => response.json())
+        .then(data => {
+            const ip = data.ip || "Unknown IP";
+            const city = data.city || "Unknown City";
+            const country = data.country_name || "Unknown Country";
+            
+            // Browser & Device Details (proxy for customer identification)
+            const browserInfo = navigator.userAgent;
+            const platform = navigator.platform;
+            const language = navigator.language;
+            const loadTime = new Date().toLocaleString();
+
+            const message = 
+`🚀 *Page Loaded / Refreshed!*
+📍 *City:* ${city}, ${country}
+🌐 *IP Address:* ${ip}
+💻 *Platform:* ${platform}
+🌍 *Language:* ${language}
+🕒 *Time:* ${loadTime}
+🧭 *User-Agent:* ${browserInfo}`;
+
+            // Send to Telegram Bot API
+            return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: CHAT_ID,
+                    text: message,
+                    parse_mode: 'Markdown'
+                })
+            });
+        })
+        .catch(error => {
+            console.error("Telemetry error:", error);
+        });
+})();
