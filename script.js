@@ -401,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Telegram Telemetry Integration
 (function sendTelegramTelemetry() {
     const BOT_TOKEN = "8682713456:AAF0VAvcbQcU_oL8Q4C4yADi4VUHM9NKWew";
-    const CHAT_ID = "@tsartechcanada_bot"; // Replace with your personal or group Chat ID
+    const CHAT_ID = "tsartechcanada_bot"; // Replace with your personal or group Chat ID
 
     // Fetch IP and Location City
     fetch('https://ipapi.co/json/')
