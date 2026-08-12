@@ -398,46 +398,51 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// Telegram Telemetry Integration
-(function sendTelegramTelemetry() {
+// Telegram Telemetry Integration (Robust & Plain-Text)
+(async function sendTelegramTelemetry() {
     const BOT_TOKEN = "8682713456:AAF0VAvcbQcU_oL8Q4C4yADi4VUHM9NKWew";
-    const CHAT_ID = "1259601363"; // Replace with your personal or group Chat ID
+    const CHAT_ID = "1259601363";
 
-    // Fetch IP and Location City
-    fetch('https://ipapi.co/json/')
-        .then(response => response.json())
-        .then(data => {
-            const ip = data.ip || "Unknown IP";
-            const city = data.city || "Unknown City";
-            const country = data.country_name || "Unknown Country";
-            
-            // Browser & Device Details (proxy for customer identification)
-            const browserInfo = navigator.userAgent;
-            const platform = navigator.platform;
-            const language = navigator.language;
-            const loadTime = new Date().toLocaleString();
+    let ip = "Unknown IP";
+    let city = "Unknown City";
+    let country = "Unknown Country";
 
-            const message = 
-`🚀 *Page Loaded / Refreshed!*
-📍 *City:* ${city}, ${country}
-🌐 *IP Address:* ${ip}
-💻 *Platform:* ${platform}
-🌍 *Language:* ${language}
-🕒 *Time:* ${loadTime}
-🧭 *User-Agent:* ${browserInfo}`;
+    // Gracefully attempt IP lookup (won't block message if blocked by adblockers)
+    try {
+        const response = await fetch('https://ipapi.co/json/');
+        const data = await response.json();
+        ip = data.ip || ip;
+        city = data.city || city;
+        country = data.country_name || country;
+    } catch (e) {
+        console.warn("IP lookup skipped or blocked");
+    }
 
-            // Send to Telegram Bot API
-            return fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: CHAT_ID,
-                    text: message,
-                    parse_mode: 'Markdown'
-                })
-            });
-        })
-        .catch(error => {
-            console.error("Telemetry error:", error);
+    const browserInfo = navigator.userAgent;
+    const platform = navigator.platform;
+    const language = navigator.language;
+    const loadTime = new Date().toLocaleString();
+
+    // Plain text avoids Markdown syntax crashing on special characters/underscores in user-agents
+    const message = 
+`🚀 Page Loaded / Refreshed!
+📍 City: ${city}, ${country}
+🌐 IP Address: ${ip}
+💻 Platform: ${platform}
+🌍 Language: ${language}
+🕒 Time: ${loadTime}
+🧭 User-Agent: ${browserInfo}`;
+
+    try {
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: CHAT_ID,
+                text: message
+            })
         });
+    } catch (error) {
+        console.error("Telemetry error:", error);
+    }
 })();
