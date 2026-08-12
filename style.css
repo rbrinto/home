@@ -11,7 +11,7 @@ body, html {
 }
 
 /* =========================================
-   12-PHASE BRUSSELS TIME-SYNCED SKY THEMES
+   12-PHASE TIME-SYNCED SKY THEMES
 ========================================= */
 body[class*="theme-"] { animation: gradientBG 20s ease infinite; }
 body.theme-0-2 { background: linear-gradient(135deg, #050510, #0a0a2a, #0d0d2b, #111135); } 
