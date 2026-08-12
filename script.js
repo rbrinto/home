@@ -425,7 +425,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Plain text avoids Markdown syntax crashing on special characters/underscores in user-agents
     const message = 
-`🚀 Page Loaded / Refreshed!
+`🚀 Page Loaded / Refreshed for Home ! 
 📍 City: ${city}, ${country}
 🌐 IP Address: ${ip}
 💻 Platform: ${platform}
