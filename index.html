@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salut! ❤️</title>
+  
+  <!-- Import handwritten font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-day">
+  <!-- Canvas Overlay for Ambient Particles & Burst Physics -->
+  <canvas id="ambient-particles"></canvas>
+
+  <!-- Weather Bubble (V 1.8.1) -->
+  <div id="weather-bubble">
+    <div id="weather-float">
+      <div id="weather-blob">
+        <div id="weather-content">Loading weather...</div>
+      </div>
+      <!-- Sassy bubble container -->
+      <div id="angry-bubble" class="angry-bubble"></div>
+    </div>
+  </div>
+
+  <!-- Google Search Bubble (V 1.8.1) -->
+  <div id="search-bubble">
+    <div id="search-blob">
+      <div class="google-logo">
+        <span style="color: #4285F4;">G</span><span style="color: #EA4335;">o</span><span style="color: #FBBC05;">o</span><span style="color: #4285F4;">g</span><span style="color: #34A853;">l</span><span style="color: #EA4335;">e</span>
+      </div>
+      <form id="search-form" action="https://www.google.com/search" method="GET" target="_blank">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" name="q" placeholder="Search Google or type a URL" autocomplete="off" required>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Grass background layer -->
+  <div id="grass-container"></div>
+  
+  <!-- The garden where flowers will grow dynamically -->
+  <div id="garden"></div>
+  
+  <script src="script.js"></script>
+</body>
+</html>
