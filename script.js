@@ -40,13 +40,13 @@ document.addEventListener('DOMContentLoaded', () => {
   ];
 
   // =========================================
-  // 1. 12-PHASE BRUSSELS TIME-SYNCED SKY
+  // 1. 12-PHASE DHAKA TIME-SYNCED SKY
   // =========================================
-  function updateBrusselsTheme() {
+  function updateDhakaTheme() {
     try {
       const now = new Date();
-      const brusselsHourStr = now.toLocaleString("en-US", { timeZone: "Europe/Brussels", hour: 'numeric', hour12: false });
-      let hour = parseInt(brusselsHourStr, 10);
+      const dhakaHourStr = now.toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour: 'numeric', hour12: false });
+      let hour = parseInt(dhakaHourStr, 10);
       if (hour >= 24) hour = 0; 
 
       document.body.className = document.body.className.replace(/\btheme-\d+-\d+\b/g, '').trim();
@@ -58,8 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.classList.add('theme-12-14'); 
     }
   }
-  updateBrusselsTheme();
-  setInterval(updateBrusselsTheme, 60000);
+  updateDhakaTheme();
+  setInterval(updateDhakaTheme, 60000);
 
   // =========================================
   // 2. CANVAS AMBIENT PARTICLES & SPARKLE PHYSICS
@@ -163,7 +163,8 @@ document.addEventListener('DOMContentLoaded', () => {
   async function fetchWeather() {
     try {
       // V1.8 Added is_day parameter to accurately track sunset/sunrise
-      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=50.83&longitude=4.39&current=temperature_2m,apparent_temperature,weather_code,is_day&timezone=Europe%2FBrussels');
+      // Updated Coordinates for Dhaka, Bangladesh
+      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=23.8103&longitude=90.4125&current=temperature_2m,apparent_temperature,weather_code,is_day&timezone=Asia%2FDhaka');
       const data = await response.json();
       
       const temp = Math.round(data.current.temperature_2m);
@@ -194,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const weatherContent = document.getElementById('weather-content');
       
       weatherContent.innerHTML = `
-        <div class="weather-header">${icon} ${temp}°C <br><span>in Brussels</span></div>
+        <div class="weather-header">${icon} ${temp}°C <br><span>in Dhaka</span></div>
         <div class="weather-desc">Feels like ${feelsLike}°C • ${condition}</div>
         <div class="weather-rec">${recommendation}</div>
       `;
