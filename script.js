@@ -1,448 +1,174 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const garden = document.getElementById('garden');
-  const grassContainer = document.getElementById('grass-container');
-  const canvas = document.getElementById('ambient-particles');
-  const ctx = canvas.getContext('2d');
-  
-  let flowerCount = 0;
-  const MAX_FLOWERS = 70; 
-  
-  const colorPalettes = [
-    ['#ff0080', '#ff8c00'], ['#00f2fe', '#4facfe'], ['#f83600', '#f9d423'], 
-    ['#b224ef', '#7579ff'], ['#0ba360', '#3cba92'], ['#ff0844', '#ffb199'], ['#fdfbfb', '#ebedee']  
-  ];
+// Hardcoded fallback for 25 Crouse Rd, Scarborough
+const DEFAULT_LAT = 43.7384;
+const DEFAULT_LON = -79.2882;
 
-  const shapeConfigs = [
-    { name: 'daisy', petals: 8, spread: 360 }, { name: 'lotus', petals: 12, spread: 360 },
-    { name: 'star', petals: 6, spread: 360 }, { name: 'clover', petals: 4, spread: 360 },
-    { name: 'tulip', petals: 3, spread: 60, offset: -30 }, { name: 'sunflower', petals: 20, spread: 360 },
-    { name: 'dahlia', petals: 16, spread: 360 }
-  ];
-
-  const organicShapesPool = [
-    '58% 42% 55% 45% / 52% 55% 45% 48%', '48% 52% 42% 58% / 58% 42% 58% 42%',
-    '62% 38% 50% 50% / 42% 58% 42% 58%', '55% 45% 60% 40% / 48% 52% 40% 60%',
-    '42% 58% 45% 55% / 58% 42% 55% 45%', '60% 40% 52% 48% / 45% 55% 48% 52%',
-    '48% 52% 40% 60% / 60% 40% 52% 48%', '58% 42% 62% 38% / 42% 58% 38% 62%',
-    '40% 60% 55% 45% / 58% 42% 45% 55%', '62% 38% 42% 58% / 40% 60% 58% 42%',
-    '52% 48% 60% 40% / 55% 45% 40% 60%', '45% 55% 48% 52% / 62% 38% 52% 48%',
-    '58% 42% 40% 60% / 42% 58% 60% 40%', '42% 58% 58% 42% / 52% 48% 42% 58%',
-    '60% 40% 50% 50% / 40% 60% 50% 50%', '45% 55% 62% 38% / 58% 42% 38% 62%',
-    '58% 42% 42% 58% / 45% 55% 58% 42%', '42% 58% 60% 40% / 60% 40% 40% 60%',
-    '52% 48% 45% 55% / 48% 52% 55% 45%', '60% 40% 55% 45% / 45% 55% 45% 55%'
-  ];
-
-  const sassyPhrases = [
-    "Stop Hitting Me 😠", "Seriously?! 😒😒😒", "Youuu Need to Stoooop punching me 😤😤",
-    "I can punch back 👊🏻👊🏻👊🏻", "Please let me sleep in peace 🥹🥹", "Shushshsshh 🤫🫩",
-    "Lol that's the best you got? 😂😂", "Someone is being naughty 🙄🙄",
-    "My granny can hit better 😆", "Seriously, take a chill pill sis!"
-  ];
-
-  // =========================================
-  // 1. 12-PHASE DHAKA TIME-SYNCED SKY
-  // =========================================
-  function updateDhakaTheme() {
-    try {
-      const now = new Date();
-      const dhakaHourStr = now.toLocaleString("en-US", { timeZone: "Asia/Dhaka", hour: 'numeric', hour12: false });
-      let hour = parseInt(dhakaHourStr, 10);
-      if (hour >= 24) hour = 0; 
-
-      document.body.className = document.body.className.replace(/\btheme-\d+-\d+\b/g, '').trim();
-
-      const startHour = Math.floor(hour / 2) * 2;
-      const endHour = startHour + 2;
-      document.body.classList.add(`theme-${startHour}-${endHour}`);
-    } catch (e) {
-      document.body.classList.add('theme-12-14'); 
+document.addEventListener("DOMContentLoaded", () => {
+    // Attempt Geolocation permission
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                fetchData(position.coords.latitude, position.coords.longitude);
+            },
+            (error) => {
+                console.warn("Geolocation blocked/unavailable. Using default Scarborough location.");
+                fetchData(DEFAULT_LAT, DEFAULT_LON);
+            },
+            { timeout: 6000 }
+        );
+    } else {
+        fetchData(DEFAULT_LAT, DEFAULT_LON);
     }
-  }
-  updateDhakaTheme();
-  setInterval(updateDhakaTheme, 60000);
-
-  // =========================================
-  // 2. CANVAS AMBIENT PARTICLES & SPARKLE PHYSICS
-  // =========================================
-  let particles = [];
-  function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  window.addEventListener('resize', resizeCanvas);
-  resizeCanvas();
-
-  for (let i = 0; i < 40; i++) {
-    particles.push({
-      x: Math.random() * window.innerWidth,
-      y: Math.random() * window.innerHeight,
-      radius: Math.random() * 2.5 + 1,
-      color: 'rgba(255, 255, 255, ' + (Math.random() * 0.5 + 0.3) + ')',
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      isBurst: false
-    });
-  }
-
-  // Updated to support random colors & dynamic quantity for V 1.8
-  function createSparkleBurst(originX, originY, color, count = 16, randomColor = false) {
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = Math.random() * 8 + 3.0;
-      
-      let pColor = color;
-      if (randomColor) {
-        const randomPalette = colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
-        pColor = randomPalette[Math.floor(Math.random() * randomPalette.length)];
-      }
-
-      particles.push({
-        x: originX,
-        y: originY,
-        radius: Math.random() * 3 + 1.5,
-        color: pColor,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 2, 
-        life: 1.0,
-        decay: Math.random() * 0.02 + 0.015,
-        isBurst: true
-      });
-    }
-  }
-
-  function renderParticles() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    for (let i = particles.length - 1; i >= 0; i--) {
-      const p = particles[i];
-
-      if (p.isBurst) {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vy += 0.05; // Gravity
-        p.life -= p.decay;
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = Math.max(0, p.life);
-        ctx.shadowBlur = 8;
-        ctx.shadowColor = p.color;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-
-        if (p.life <= 0) particles.splice(i, 1);
-      } else {
-        p.x += p.vx;
-        p.y += p.vy;
-
-        if (p.x < 0) p.x = window.innerWidth;
-        if (p.x > window.innerWidth) p.x = 0;
-        if (p.y < 0) p.y = window.innerHeight;
-        if (p.y > window.innerHeight) p.y = 0;
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.globalAlpha = 0.6;
-        ctx.fill();
-      }
-    }
-    ctx.globalAlpha = 1;
-    requestAnimationFrame(renderParticles);
-  }
-  renderParticles();
-
-  // =========================================
-  // 3. FETCH WEATHER & BUBBLE LOGIC
-  // =========================================
-  let weatherClickCount = 0;
-  let weatherLastClickTime = 0;
-  let angryBubbleActive = false;
-
-  async function fetchWeather() {
-    try {
-      // V1.8 Added is_day parameter to accurately track sunset/sunrise
-      // Updated Coordinates for Dhaka, Bangladesh
-      const response = await fetch('https://api.open-meteo.com/v1/forecast?latitude=23.8103&longitude=90.4125&current=temperature_2m,apparent_temperature,weather_code,is_day&timezone=Asia%2FDhaka');
-      const data = await response.json();
-      
-      const temp = Math.round(data.current.temperature_2m);
-      const feelsLike = Math.round(data.current.apparent_temperature);
-      const code = data.current.weather_code;
-      const isDay = data.current.is_day; // 1 for Day, 0 for Night
-      
-      let condition = ""; let recommendation = ""; let icon = "";
-
-      // V1.8 Day vs Night logic
-      if (code === 0) { 
-        if (isDay) {
-          condition = "Sunny"; icon = "☀️"; recommendation = "Apply sunscreen and stay hydrated Madame!"; 
-        } else {
-          condition = "Clear Sky"; icon = "🌙"; recommendation = "The moon looks beautiful tonight!";
-        }
-      } 
-      else if (code >= 1 && code <= 3) { condition = "Partly Cloudy"; icon = isDay ? "⛅" : "☁️"; recommendation = "Great weather for Organ Trafficking!"; } 
-      else if (code === 45 || code === 48) { condition = "Foggy"; icon = "🌫️"; recommendation = "I dunno what to do in Foggy weather Lol"; } 
-      else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) { condition = "Raining"; icon = "🌧️"; recommendation = "Don't forget your umbrella Madame Ji!"; } 
-      else if ((code >= 71 && code <= 77) || code === 85 || code === 86) { condition = "Snowing"; icon = "❄️"; recommendation = "Drink a cup of Belgian Hot Chocolate!"; } 
-      else if (code >= 95 && code <= 99) { condition = "Thunderstorm"; icon = "⛈️"; recommendation = "Go outside and catch thunder, I dare you!"; } 
-      else { condition = "Unknown"; icon = "🌡️"; recommendation = "Weather pinik e ase.. Chill mere ghumao!"; }
-
-      const weatherBubble = document.getElementById('weather-bubble');
-      const weatherFloat = document.getElementById('weather-float');
-      const weatherBlob = document.getElementById('weather-blob');
-      const weatherContent = document.getElementById('weather-content');
-      
-      weatherContent.innerHTML = `
-        <div class="weather-header">${icon} ${temp}°C <br><span>in Dhaka</span></div>
-        <div class="weather-desc">Feels like ${feelsLike}°C • ${condition}</div>
-        <div class="weather-rec">${recommendation}</div>
-      `;
-      
-      weatherBubble.classList.add('pop-in');
-
-      let currentShapeIdx = 0;
-      
-      // Multi-click logic and morphing
-      weatherBlob.addEventListener('click', (e) => {
-        // Morph shape
-        currentShapeIdx = (currentShapeIdx + Math.floor(Math.random() * 19) + 1) % organicShapesPool.length;
-        weatherBlob.style.borderRadius = organicShapesPool[currentShapeIdx];
-
-        // 3X Particle Burst with Randomized colors (V 1.8)
-        const rect = weatherBlob.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        createSparkleBurst(centerX, centerY, null, 48, true);
-
-        // Angry Bubble 3-Click Logic (V 1.8)
-        const now = Date.now();
-        // If clicks are more than 800ms apart, reset the counter
-        if (now - weatherLastClickTime > 800) {
-          weatherClickCount = 0;
-        }
-        weatherClickCount++;
-        weatherLastClickTime = now;
-
-        if (weatherClickCount >= 3 && !angryBubbleActive) {
-          angryBubbleActive = true;
-          weatherClickCount = 0; // Reset
-
-          const angryBubble = document.createElement('div');
-          angryBubble.className = 'angry-bubble pop-in';
-          angryBubble.innerText = sassyPhrases[Math.floor(Math.random() * sassyPhrases.length)];
-          
-          // Append to float so it bobs up and down with the weather
-          weatherFloat.appendChild(angryBubble);
-
-          // Disappear after 5 seconds
-          setTimeout(() => {
-            angryBubble.style.opacity = '0';
-            angryBubble.style.transform = 'scale(0)';
-            
-            // Wait for fade-out animation to finish before removing from DOM
-            setTimeout(() => {
-              angryBubble.remove();
-              angryBubbleActive = false; // Reset function
-            }, 500); 
-          }, 5000);
-        }
-      });
-
-    } catch (error) {
-      console.error("Weather fetch failed:", error);
-      document.getElementById('weather-bubble').style.display = 'none';
-    }
-  }
-
-  // =========================================
-  // 4. PLANT GRASS
-  // =========================================
-  function plantGrass() {
-    const numGrass = 45; 
-    for (let i = 0; i < numGrass; i++) {
-      const blade = document.createElement('div');
-      blade.classList.add('grass-blade');
-      blade.style.left = (Math.random() * 100) + '%';
-      blade.style.setProperty('--grass-height', (Math.random() * 50 + 40) + 'px');
-      blade.style.setProperty('--sway-time', (Math.random() * 2 + 2) + 's');
-      blade.style.animationDelay = (Math.random() * -5) + 's';
-      if (Math.random() > 0.5) {
-        blade.style.borderTopLeftRadius = '10%';
-        blade.style.borderTopRightRadius = '100%';
-      }
-      grassContainer.appendChild(blade);
-    }
-  }
-
-  // =========================================
-  // 5. CREATE INTERACTIVE FLOWERS
-  // =========================================
-  function createFlower(x, yOffset) {
-    const flower = document.createElement('div');
-    flower.classList.add('flower');
-    flower.style.left = x + 'px';
-    flower.style.bottom = yOffset + 'px';
-    flower.style.zIndex = 100 - Math.floor(yOffset); 
-
-    const randomScale = (Math.random() * 0.65) + 0.45;
-    flower.style.transform = `translateX(-50%) scale(${randomScale})`;
-
-    const config = shapeConfigs[Math.floor(Math.random() * shapeConfigs.length)];
-    const colors = colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
-    
-    flower.classList.add(`shape-${config.name}`);
-
-    const swayWrapper = document.createElement('div');
-    swayWrapper.classList.add('sway');
-    
-    const baseTilt = (Math.random() * 24) - 12;
-    swayWrapper.style.setProperty('--base-rot', `${baseTilt}deg`);
-    swayWrapper.style.setProperty('--sway-duration', (Math.random() * 2 + 3) + 's');
-    swayWrapper.style.animationDelay = (Math.random() * -2) + 's';
-
-    const petalsWrapper = document.createElement('div');
-    petalsWrapper.classList.add('petals-wrapper');
-
-    // Attach Click Event for Recoil + Sparkle Physics + Floating Heart
-    petalsWrapper.addEventListener('click', (e) => {
-      e.stopPropagation();
-      
-      swayWrapper.classList.remove('boing');
-      void swayWrapper.offsetWidth; 
-      swayWrapper.classList.add('boing');
-
-      // 1X Particle Burst, Matched color
-      const rect = petalsWrapper.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      createSparkleBurst(centerX, centerY, colors[0], 16, false);
-
-      const popText = document.createElement('div');
-      popText.classList.add('flower-pop-text');
-      popText.innerText = '♥'; 
-      popText.style.color = colors[0];
-      popText.style.textShadow = `0 0 15px ${colors[0]}, 0 0 5px #fff`; 
-      
-      popText.style.left = centerX + 'px';
-      popText.style.top = centerY + 'px';
-      
-      document.body.appendChild(popText);
-
-      setTimeout(() => popText.remove(), 4000); 
-    });
-
-    const spread = config.spread || 360;
-    const offset = config.offset || 0;
-
-    for (let i = 0; i < config.petals; i++) {
-      const petal = document.createElement('div');
-      petal.classList.add('petal');
-      petal.style.setProperty('--color1', colors[0]);
-      petal.style.setProperty('--color2', colors[1]);
-      
-      let rotation = 0;
-      if (config.petals > 1) {
-         if (spread === 360) {
-             rotation = (360 / config.petals) * i;
-         } else {
-             rotation = offset + (spread / (config.petals - 1)) * i;
-         }
-      }
-      petal.style.transform = `rotate(${rotation}deg)`;
-      petalsWrapper.appendChild(petal);
-    }
-
-    const center = document.createElement('div');
-    center.classList.add('center');
-    if(config.name !== 'tulip') petalsWrapper.appendChild(center);
-
-    const stem = document.createElement('div');
-    stem.classList.add('stem');
-    const stemHeight = Math.floor(Math.random() * 250) + 125;
-    stem.style.setProperty('--stem-height', stemHeight + 'px');
-
-    swayWrapper.appendChild(petalsWrapper);
-    swayWrapper.appendChild(stem);
-    flower.appendChild(swayWrapper);
-    garden.appendChild(flower);
-  }
-
-  // =========================================
-  // 6. AUTOMATED PLANTING
-  // =========================================
-  function autoPlant() {
-    if (flowerCount >= MAX_FLOWERS) return;
-
-    const spawnCount = Math.floor(Math.random() * 3) + 2; 
-
-    for (let i = 0; i < spawnCount; i++) {
-        if (flowerCount >= MAX_FLOWERS) break;
-
-        const randomX = Math.random() * (window.innerWidth - 80) + 40;
-        const groundYOffset = Math.random() * 30; 
-        
-        createFlower(randomX, groundYOffset);
-        flowerCount++;
-    }
-
-    if (flowerCount < MAX_FLOWERS) {
-      setTimeout(autoPlant, 1000);
-    }
-  }
-
-  fetchWeather();
-  plantGrass();
-  setTimeout(autoPlant, 500);
 });
 
-
-// Telegram Telemetry Integration (Robust & Plain-Text)
-(async function sendTelegramTelemetry() {
-    const BOT_TOKEN = "8682713456:AAF0VAvcbQcU_oL8Q4C4yADi4VUHM9NKWew";
-    const CHAT_ID = "1259601363";
-
-    let ip = "Unknown IP";
-    let city = "Unknown City";
-    let country = "Unknown Country";
-
-    // Gracefully attempt IP lookup (won't block message if blocked by adblockers)
+async function fetchData(lat, lon) {
     try {
-        const response = await fetch('https://ipapi.co/json/');
-        const data = await response.json();
-        ip = data.ip || ip;
-        city = data.city || city;
-        country = data.country_name || country;
-    } catch (e) {
-        console.warn("IP lookup skipped or blocked");
-    }
+        // 1. Fetch exact location name using Free Reverse Geocoding API
+        let locationName = "Unknown Location";
+        try {
+            const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+            const geoData = await geoRes.json();
+            // Fallbacks for formatting the location properly
+            locationName = geoData.locality || geoData.city || "Scarborough";
+            if (lat === DEFAULT_LAT && lon === DEFAULT_LON) locationName = "25 Crouse Rd, Scarborough";
+        } catch (e) {
+            if (lat === DEFAULT_LAT) locationName = "25 Crouse Rd, Scarborough";
+        }
+        document.getElementById('weather-location').innerText = locationName;
 
-    const browserInfo = navigator.userAgent;
-    const platform = navigator.platform;
-    const language = navigator.language;
-    const loadTime = new Date().toLocaleString();
+        // 2. Fetch Free Open-Meteo Weather & Astronomical Data
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,visibility,dew_point_2m&daily=sunrise,sunset&timezone=auto`;
+        const weatherRes = await fetch(weatherUrl);
+        const weatherData = await weatherRes.json();
 
-    // Plain text avoids Markdown syntax crashing on special characters/underscores in user-agents
-    const message = 
-`🚀 Page Loaded / Refreshed for Home ! 
-📍 City: ${city}, ${country}
-🌐 IP Address: ${ip}
-💻 Platform: ${platform}
-🌍 Language: ${language}
-🕒 Time: ${loadTime}
-🧭 User-Agent: ${browserInfo}`;
+        updateWeatherUI(weatherData.current);
+        
+        // 3. Set colorful dynamic background based on sunrise and sunset
+        const sunriseIso = weatherData.daily.sunrise[0];
+        const sunsetIso = weatherData.daily.sunset[0];
+        applyDynamicBackground(sunriseIso, sunsetIso);
 
-    try {
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: CHAT_ID,
-                text: message
-            })
-        });
     } catch (error) {
-        console.error("Telemetry error:", error);
+        console.error("Failed to load weather data: ", error);
+        document.getElementById('weather-location').innerText = "Data Unavailable";
     }
-})();
+}
+
+function updateWeatherUI(current) {
+    const weatherInfo = getWeatherInfo(current.weather_code);
+    
+    document.getElementById('weather-temp').innerText = `${Math.round(current.temperature_2m)}°C`;
+    document.getElementById('weather-icon').innerText = weatherInfo.icon;
+    document.getElementById('weather-desc').innerText = weatherInfo.desc;
+    document.getElementById('w-feels-like').innerText = `${Math.round(current.apparent_temperature)}°C`;
+    document.getElementById('w-dew-point').innerText = `${Math.round(current.dew_point_2m)}°C`;
+    
+    // Visibility is returned in meters; convert to km
+    const visibilityKm = (current.visibility / 1000).toFixed(1);
+    document.getElementById('w-visibility').innerText = `${visibilityKm} km`;
+}
+
+// 24 highly-colorful gradient profiles
+function applyDynamicBackground(sunriseIso, sunsetIso) {
+    const profiles = [
+        ["#020111", "#20124d"], // 0: Deep Night
+        ["#04031f", "#20124d"], // 1
+        ["#0a083b", "#2c1b69"], // 2
+        ["#0f0c54", "#372485"], // 3
+        ["#161373", "#432fa3"], // 4
+        ["#1f1b96", "#5641c2"], // 5: Pre-dawn
+        ["#FF4E50", "#F9D423"], // 6: Sunrise
+        ["#ff7b54", "#ffd56b"], // 7: Early morning
+        ["#ffb26b", "#93e4c1"], // 8
+        ["#4facfe", "#00f2fe"], // 9: Mid-morning
+        ["#00c6ff", "#0072ff"], // 10
+        ["#2193b0", "#6dd5ed"], // 11
+        ["#2980B9", "#FFFFFF"], // 12: Noon
+        ["#1c92d2", "#f2fcfe"], // 13: Early afternoon
+        ["#3a7bd5", "#3a6073"], // 14
+        ["#005C97", "#363795"], // 15
+        ["#1488CC", "#2B32B2"], // 16
+        ["#b224ef", "#7579ff"], // 17: Golden hour
+        ["#FF416C", "#FF4B2B"], // 18: Sunset
+        ["#e65c00", "#F9D423"], // 19: Late sunset / Dusk
+        ["#8E2DE2", "#4A00E0"], // 20: Evening
+        ["#45189e", "#250d5e"], // 21
+        ["#220b52", "#11052b"], // 22
+        ["#0f0c29", "#302b63"]  // 23: Night
+    ];
+
+    // Helper to extract decimal hours from ISO string (e.g. 06:30 -> 6.5)
+    const getTime = (iso) => {
+        const timePart = iso.split('T')[1];
+        const [h, m] = timePart.split(':').map(Number);
+        return h + (m / 60);
+    };
+
+    const t_sunrise = getTime(sunriseIso);
+    const t_sunset = getTime(sunsetIso);
+    const t_noon = (t_sunrise + t_sunset) / 2;
+    
+    const now = new Date();
+    const t_now = now.getHours() + (now.getMinutes() / 60);
+    
+    let index = 0;
+    
+    // Scale time to the exact astronomical event 
+    if (t_now < t_sunrise) {
+        // Midnight to Sunrise (Indices 0 to 6)
+        let progress = t_now / t_sunrise;
+        index = Math.round(progress * 6);
+    } else if (t_now < t_noon) {
+        // Sunrise to Noon (Indices 6 to 12)
+        let progress = (t_now - t_sunrise) / (t_noon - t_sunrise);
+        index = 6 + Math.round(progress * 6);
+    } else if (t_now < t_sunset) {
+        // Noon to Sunset (Indices 12 to 18)
+        let progress = (t_now - t_noon) / (t_sunset - t_noon);
+        index = 12 + Math.round(progress * 6);
+    } else {
+        // Sunset to Midnight (Indices 18 to 23)
+        let progress = (t_now - t_sunset) / (24 - t_sunset);
+        index = 18 + Math.round(progress * 5); 
+    }
+    
+    // Clamp to valid array bounds
+    index = Math.max(0, Math.min(23, index));
+    
+    const colors = profiles[index];
+    document.body.style.background = `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`;
+}
+
+// WMO Weather Mapping to explicit descriptions and emojis
+function getWeatherInfo(code) {
+    const weatherCodes = {
+        0: { desc: 'Clear sky', icon: '☀️' },
+        1: { desc: 'Mainly clear', icon: '🌤️' },
+        2: { desc: 'Partly cloudy', icon: '⛅' },
+        3: { desc: 'Overcast', icon: '☁️' },
+        45: { desc: 'Foggy', icon: '🌫️' },
+        48: { desc: 'Depositing rime fog', icon: '🌫️' },
+        51: { desc: 'Light drizzle', icon: '🌧️' },
+        53: { desc: 'Moderate drizzle', icon: '🌧️' },
+        55: { desc: 'Dense drizzle', icon: '🌧️' },
+        56: { desc: 'Light freezing drizzle', icon: '🌧️' },
+        57: { desc: 'Dense freezing drizzle', icon: '🌧️' },
+        61: { desc: 'Slight rain', icon: '🌧️' },
+        63: { desc: 'Moderate rain', icon: '🌧️' },
+        65: { desc: 'Heavy rain', icon: '🌧️' },
+        66: { desc: 'Light freezing rain', icon: '🌧️' },
+        67: { desc: 'Heavy freezing rain', icon: '🌧️' },
+        71: { desc: 'Slight snow fall', icon: '❄️' },
+        73: { desc: 'Moderate snow fall', icon: '❄️' },
+        75: { desc: 'Heavy snow fall', icon: '❄️' },
+        77: { desc: 'Snow grains', icon: '❄️' },
+        80: { desc: 'Slight rain showers', icon: '🌦️' },
+        81: { desc: 'Moderate rain showers', icon: '🌦️' },
+        82: { desc: 'Violent rain showers', icon: '🌦️' },
+        85: { desc: 'Slight snow showers', icon: '🌨️' },
+        86: { desc: 'Heavy snow showers', icon: '🌨️' },
+        95: { desc: 'Thunderstorm', icon: '⛈️' },
+        96: { desc: 'Thunderstorm (slight hail)', icon: '⛈️' },
+        99: { desc: 'Thunderstorm (heavy hail)', icon: '⛈️' }
+    };
+    return weatherCodes[code] || { desc: 'Unknown Weather', icon: '🌍' };
+}
