@@ -1,146 +1,127 @@
-// Hardcoded fallback for 25 Crouse Rd, Scarborough
 const DEFAULT_LAT = 43.7384;
 const DEFAULT_LON = -79.2882;
+const DEFAULT_NAME = "25 Crouse Rd, Scarborough";
+
+// 24 Dynamic Gradient Profiles
+const COLOR_PROFILES = [
+    ["#020111", "#20124d"], ["#04031f", "#20124d"], ["#0a083b", "#2c1b69"],
+    ["#0f0c54", "#372485"], ["#161373", "#432fa3"], ["#1f1b96", "#5641c2"],
+    ["#FF4E50", "#F9D423"], ["#ff7b54", "#ffd56b"], ["#ffb26b", "#93e4c1"],
+    ["#4facfe", "#00f2fe"], ["#00c6ff", "#0072ff"], ["#2193b0", "#6dd5ed"],
+    ["#2980B9", "#FFFFFF"], ["#1c92d2", "#f2fcfe"], ["#3a7bd5", "#3a6073"],
+    ["#005C97", "#363795"], ["#1488CC", "#2B32B2"], ["#b224ef", "#7579ff"],
+    ["#FF416C", "#FF4B2B"], ["#e65c00", "#F9D423"], ["#8E2DE2", "#4A00E0"],
+    ["#45189e", "#250d5e"], ["#220b52", "#11052b"], ["#0f0c29", "#302b63"]
+];
 
 document.addEventListener("DOMContentLoaded", () => {
-    // Attempt Geolocation permission
+    // 1. Immediately apply color gradient based on current hour
+    applyImmediateBackground();
+
+    // 2. Try geolocation with strict 3s timeout
     if ("geolocation" in navigator) {
+        let resolved = false;
+        
         navigator.geolocation.getCurrentPosition(
-            (position) => {
-                fetchData(position.coords.latitude, position.coords.longitude);
+            (pos) => {
+                resolved = true;
+                initWeather(pos.coords.latitude, pos.coords.longitude, false);
             },
-            (error) => {
-                console.warn("Geolocation blocked/unavailable. Using default Scarborough location.");
-                fetchData(DEFAULT_LAT, DEFAULT_LON);
+            () => {
+                if (!resolved) initWeather(DEFAULT_LAT, DEFAULT_LON, true);
             },
-            { timeout: 6000 }
+            { timeout: 3000, enableHighAccuracy: false }
         );
+        
+        // Backup timer in case browser hangs on prompt
+        setTimeout(() => {
+            if (!resolved) initWeather(DEFAULT_LAT, DEFAULT_LON, true);
+        }, 3200);
     } else {
-        fetchData(DEFAULT_LAT, DEFAULT_LON);
+        initWeather(DEFAULT_LAT, DEFAULT_LON, true);
     }
 });
 
-async function fetchData(lat, lon) {
-    try {
-        // 1. Fetch exact location name using Free Reverse Geocoding API
-        let locationName = "Unknown Location";
+function applyImmediateBackground() {
+    const hour = new Date().getHours();
+    const colors = COLOR_PROFILES[hour] || COLOR_PROFILES[12];
+    document.body.style.background = `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`;
+}
+
+async function initWeather(lat, lon, isDefault) {
+    // Resolve location name
+    if (isDefault) {
+        document.getElementById('weather-location').innerText = DEFAULT_NAME;
+    } else {
         try {
-            const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
-            const geoData = await geoRes.json();
-            // Fallbacks for formatting the location properly
-            locationName = geoData.locality || geoData.city || "Scarborough";
-            if (lat === DEFAULT_LAT && lon === DEFAULT_LON) locationName = "25 Crouse Rd, Scarborough";
-        } catch (e) {
-            if (lat === DEFAULT_LAT) locationName = "25 Crouse Rd, Scarborough";
+            const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);
+            const data = await res.json();
+            const locName = data.locality || data.city || data.principalSubdivision || "Current Location";
+            document.getElementById('weather-location').innerText = locName;
+        } catch {
+            document.getElementById('weather-location').innerText = "Current Location";
         }
-        document.getElementById('weather-location').innerText = locationName;
+    }
 
-        // 2. Fetch Free Open-Meteo Weather & Astronomical Data
-        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,visibility,dew_point_2m&daily=sunrise,sunset&timezone=auto`;
-        const weatherRes = await fetch(weatherUrl);
-        const weatherData = await weatherRes.json();
+    // Fetch Weather Data
+    try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weather_code,visibility,dew_point_2m&daily=sunrise,sunset&timezone=auto`;
+        const res = await fetch(url);
+        const data = await res.json();
 
-        updateWeatherUI(weatherData.current);
+        updateWeatherUI(data.current);
         
-        // 3. Set colorful dynamic background based on sunrise and sunset
-        const sunriseIso = weatherData.daily.sunrise[0];
-        const sunsetIso = weatherData.daily.sunset[0];
-        applyDynamicBackground(sunriseIso, sunsetIso);
-
-    } catch (error) {
-        console.error("Failed to load weather data: ", error);
-        document.getElementById('weather-location').innerText = "Data Unavailable";
+        if (data.daily && data.daily.sunrise && data.daily.sunset) {
+            applySunCalculatedBackground(data.daily.sunrise[0], data.daily.sunset[0]);
+        }
+    } catch (e) {
+        document.getElementById('weather-desc').innerText = "Unable to load weather";
     }
 }
 
 function updateWeatherUI(current) {
-    const weatherInfo = getWeatherInfo(current.weather_code);
-    
+    const info = getWeatherInfo(current.weather_code);
     document.getElementById('weather-temp').innerText = `${Math.round(current.temperature_2m)}°C`;
-    document.getElementById('weather-icon').innerText = weatherInfo.icon;
-    document.getElementById('weather-desc').innerText = weatherInfo.desc;
+    document.getElementById('weather-icon').innerText = info.icon;
+    document.getElementById('weather-desc').innerText = info.desc;
     document.getElementById('w-feels-like').innerText = `${Math.round(current.apparent_temperature)}°C`;
     document.getElementById('w-dew-point').innerText = `${Math.round(current.dew_point_2m)}°C`;
     
-    // Visibility is returned in meters; convert to km
-    const visibilityKm = (current.visibility / 1000).toFixed(1);
-    document.getElementById('w-visibility').innerText = `${visibilityKm} km`;
+    const visKm = current.visibility ? (current.visibility / 1000).toFixed(1) : '--';
+    document.getElementById('w-visibility').innerText = `${visKm} km`;
 }
 
-// 24 highly-colorful gradient profiles
-function applyDynamicBackground(sunriseIso, sunsetIso) {
-    const profiles = [
-        ["#020111", "#20124d"], // 0: Deep Night
-        ["#04031f", "#20124d"], // 1
-        ["#0a083b", "#2c1b69"], // 2
-        ["#0f0c54", "#372485"], // 3
-        ["#161373", "#432fa3"], // 4
-        ["#1f1b96", "#5641c2"], // 5: Pre-dawn
-        ["#FF4E50", "#F9D423"], // 6: Sunrise
-        ["#ff7b54", "#ffd56b"], // 7: Early morning
-        ["#ffb26b", "#93e4c1"], // 8
-        ["#4facfe", "#00f2fe"], // 9: Mid-morning
-        ["#00c6ff", "#0072ff"], // 10
-        ["#2193b0", "#6dd5ed"], // 11
-        ["#2980B9", "#FFFFFF"], // 12: Noon
-        ["#1c92d2", "#f2fcfe"], // 13: Early afternoon
-        ["#3a7bd5", "#3a6073"], // 14
-        ["#005C97", "#363795"], // 15
-        ["#1488CC", "#2B32B2"], // 16
-        ["#b224ef", "#7579ff"], // 17: Golden hour
-        ["#FF416C", "#FF4B2B"], // 18: Sunset
-        ["#e65c00", "#F9D423"], // 19: Late sunset / Dusk
-        ["#8E2DE2", "#4A00E0"], // 20: Evening
-        ["#45189e", "#250d5e"], // 21
-        ["#220b52", "#11052b"], // 22
-        ["#0f0c29", "#302b63"]  // 23: Night
-    ];
-
-    // Helper to extract decimal hours from ISO string (e.g. 06:30 -> 6.5)
-    const getTime = (iso) => {
-        const timePart = iso.split('T')[1];
-        const [h, m] = timePart.split(':').map(Number);
-        return h + (m / 60);
+function applySunCalculatedBackground(sunriseIso, sunsetIso) {
+    const parseTime = (iso) => {
+        const t = iso.split('T')[1].split(':');
+        return parseInt(t[0]) + (parseInt(t[1]) / 60);
     };
 
-    const t_sunrise = getTime(sunriseIso);
-    const t_sunset = getTime(sunsetIso);
+    const t_sunrise = parseTime(sunriseIso);
+    const t_sunset = parseTime(sunsetIso);
     const t_noon = (t_sunrise + t_sunset) / 2;
     
     const now = new Date();
     const t_now = now.getHours() + (now.getMinutes() / 60);
     
     let index = 0;
-    
-    // Scale time to the exact astronomical event 
     if (t_now < t_sunrise) {
-        // Midnight to Sunrise (Indices 0 to 6)
-        let progress = t_now / t_sunrise;
-        index = Math.round(progress * 6);
+        index = Math.round((t_now / t_sunrise) * 6);
     } else if (t_now < t_noon) {
-        // Sunrise to Noon (Indices 6 to 12)
-        let progress = (t_now - t_sunrise) / (t_noon - t_sunrise);
-        index = 6 + Math.round(progress * 6);
+        index = 6 + Math.round(((t_now - t_sunrise) / (t_noon - t_sunrise)) * 6);
     } else if (t_now < t_sunset) {
-        // Noon to Sunset (Indices 12 to 18)
-        let progress = (t_now - t_noon) / (t_sunset - t_noon);
-        index = 12 + Math.round(progress * 6);
+        index = 12 + Math.round(((t_now - t_noon) / (t_sunset - t_noon)) * 6);
     } else {
-        // Sunset to Midnight (Indices 18 to 23)
-        let progress = (t_now - t_sunset) / (24 - t_sunset);
-        index = 18 + Math.round(progress * 5); 
+        index = 18 + Math.round(((t_now - t_sunset) / (24 - t_sunset)) * 5);
     }
     
-    // Clamp to valid array bounds
     index = Math.max(0, Math.min(23, index));
-    
-    const colors = profiles[index];
+    const colors = COLOR_PROFILES[index];
     document.body.style.background = `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`;
 }
 
-// WMO Weather Mapping to explicit descriptions and emojis
 function getWeatherInfo(code) {
-    const weatherCodes = {
+    const map = {
         0: { desc: 'Clear sky', icon: '☀️' },
         1: { desc: 'Mainly clear', icon: '🌤️' },
         2: { desc: 'Partly cloudy', icon: '⛅' },
@@ -150,25 +131,15 @@ function getWeatherInfo(code) {
         51: { desc: 'Light drizzle', icon: '🌧️' },
         53: { desc: 'Moderate drizzle', icon: '🌧️' },
         55: { desc: 'Dense drizzle', icon: '🌧️' },
-        56: { desc: 'Light freezing drizzle', icon: '🌧️' },
-        57: { desc: 'Dense freezing drizzle', icon: '🌧️' },
         61: { desc: 'Slight rain', icon: '🌧️' },
         63: { desc: 'Moderate rain', icon: '🌧️' },
         65: { desc: 'Heavy rain', icon: '🌧️' },
-        66: { desc: 'Light freezing rain', icon: '🌧️' },
-        67: { desc: 'Heavy freezing rain', icon: '🌧️' },
-        71: { desc: 'Slight snow fall', icon: '❄️' },
-        73: { desc: 'Moderate snow fall', icon: '❄️' },
-        75: { desc: 'Heavy snow fall', icon: '❄️' },
-        77: { desc: 'Snow grains', icon: '❄️' },
-        80: { desc: 'Slight rain showers', icon: '🌦️' },
-        81: { desc: 'Moderate rain showers', icon: '🌦️' },
-        82: { desc: 'Violent rain showers', icon: '🌦️' },
-        85: { desc: 'Slight snow showers', icon: '🌨️' },
-        86: { desc: 'Heavy snow showers', icon: '🌨️' },
-        95: { desc: 'Thunderstorm', icon: '⛈️' },
-        96: { desc: 'Thunderstorm (slight hail)', icon: '⛈️' },
-        99: { desc: 'Thunderstorm (heavy hail)', icon: '⛈️' }
+        71: { desc: 'Slight snow', icon: '❄️' },
+        73: { desc: 'Moderate snow', icon: '❄️' },
+        75: { desc: 'Heavy snow', icon: '❄️' },
+        80: { desc: 'Rain showers', icon: '🌦️' },
+        81: { desc: 'Heavy showers', icon: '🌦️' },
+        95: { desc: 'Thunderstorm', icon: '⛈️' }
     };
-    return weatherCodes[code] || { desc: 'Unknown Weather', icon: '🌍' };
+    return map[code] || { desc: 'Clear', icon: '☀️' };
 }
